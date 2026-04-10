@@ -4,11 +4,8 @@ import json
 import os
 from datetime import datetime, timedelta
 import pytz
-from apscheduler.schedulers.background import BackgroundScheduler
 from telegram import Bot
 import logging
-import time
-import threading
 
 # 로깅 설정
 logging.basicConfig(
@@ -98,20 +95,8 @@ def send_telegram_message(message):
     except Exception as e:
         logger.error(f"Telegram 메시지 발송 실패: {str(e)}")
 
-def is_korean_business_day(date_obj):
-    """한국 영업일 확인 (주말 제외)"""
-    # 0=월, 1=화, 2=수, 3=목, 4=금, 5=토, 6=일
-    return date_obj.weekday() < 5
-
-def get_next_business_day(date_obj):
-    """다음 영업일 구하기"""
-    next_day = date_obj + timedelta(days=1)
-    while not is_korean_business_day(next_day):
-        next_day += timedelta(days=1)
-    return next_day
-
-def check_fund_basis_date_sync():
-    """펀드 기준일자 확인 및 모니터링 (동기 래퍼)"""
+def check_fund_basis_date():
+    """펀드 기준일자 확인 및 모니터링"""
     logger.info("=" * 50)
     logger.info("펀드 기준일자 모니터링 시작")
     
@@ -123,7 +108,7 @@ def check_fund_basis_date_sync():
     
     if not basis_date:
         logger.error("기준일자를 가져올 수 없습니다")
-        return
+        return False
     
     last_date = current_state.get('last_date')
     last_check_date = current_state.get('last_check_date')
@@ -148,60 +133,20 @@ def check_fund_basis_date_sync():
         # 상태 저장 - 기준일자가 변경되었으므로 다음 영업일 체크 스킵
         save_state(basis_date, current_date.strftime('%Y-%m-%d'))
         logger.info("상태 저장: 기준일자 변경됨 (다음 영업일 스킵)")
+        return True
     else:
         logger.info("기준일자 변경 없음")
         # 상태만 업데이트
         save_state(basis_date, current_date.strftime('%Y-%m-%d'))
+        return False
     
     logger.info("=" * 50)
 
-def schedule_monitoring():
-    """스케줄 설정: 매월 10일 + 다음 영업일"""
-    scheduler = BackgroundScheduler(timezone=str(TZ))
-    
-    # 매월 10일 오전 9시에 실행
-    scheduler.add_job(
-        check_fund_basis_date_sync,
-        'cron',
-        day=10,
-        hour=9,
-        minute=0,
-        id='monthly_10th'
-    )
-    
-    # 매월 11일 오전 9시에 실행 (10일 다음 영업일)
-    scheduler.add_job(
-        check_fund_basis_date_sync,
-        'cron',
-        day=11,
-        hour=9,
-        minute=0,
-        id='monthly_11th'
-    )
-    
-    scheduler.start()
-    logger.info("스케줄러 시작: 매월 10일 + 11일 오전 9시 모니터링")
-    
-    try:
-        # 스케줄러가 계속 실행되도록
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        logger.info("모니터링 중단")
-        scheduler.shutdown()
-
-def test_mode():
-    """테스트 모드: 즉시 실행"""
-    logger.info("테스트 모드 시작")
-    check_fund_basis_date_sync()
-    logger.info("테스트 모드 완료")
+def main():
+    """메인 실행 함수"""
+    logger.info("프로그램 시작")
+    check_fund_basis_date()
+    logger.info("프로그램 종료")
 
 if __name__ == '__main__':
-    import sys
-    
-    if len(sys.argv) > 1 and sys.argv[1] == 'test':
-        # 테스트 모드
-        test_mode()
-    else:
-        # 정상 모드 (스케줄러 실행)
-        schedule_monitoring()
+    main()

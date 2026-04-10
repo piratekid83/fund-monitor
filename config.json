@@ -1,0 +1,8 @@
+{
+  "telegram_bot_token": "8543045672:AAGYOIaCsfSC-13mhZ1IDEojVhjDu_To7JI",
+  "telegram_chat_ids": ["6868691807", "8349084017"],
+  "kofia_url": "https://dis.kofia.or.kr/websquare/index.jsp?w2xPath=/wq/fundann/DISFundFeeCMS.xml&divisionId=MDIS01005001000000&serviceId=SDIS01005001000",
+  "check_days": "10",
+  "timezone": "Asia/Seoul",
+  "log_file": "fund_monitor.log"
+}

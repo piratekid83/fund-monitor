@@ -1,12 +1,13 @@
 name: Fund Monitor
 
 on:
+  workflow_dispatch:
   schedule:
-    - cron: '0 0 10 * *'  # 매월 10일 00:00 UTC (한국 09:00)
-    - cron: '0 0 11 * *'  # 매월 11일 00:00 UTC
-    - cron: '0 0 12 * *'  # 매월 12일 00:00 UTC
-    - cron: '0 0 13 * *'  # 매월 13일 00:00 UTC
-    - cron: '0 0 14 * *'  # 매월 14일 00:00 UTC
+    - cron: '0 0 10 * *'
+    - cron: '0 0 11 * *'
+    - cron: '0 0 12 * *'
+    - cron: '0 0 13 * *'
+    - cron: '0 0 14 * *'
 
 jobs:
   fund-monitor:

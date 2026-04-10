@@ -1,0 +1,7 @@
+requests==2.33.1
+beautifulsoup4==4.14.3
+schedule==1.2.2
+python-telegram-bot==22.7
+APScheduler==3.11.2
+pytz==2026.1.post1
+playwright==1.48.0

@@ -1,8 +1,12 @@
-import asyncio
-from playwright.async_api import async_playwright
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from webdriver_manager.chrome import ChromeDriverManager
 import json
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
 import pytz
 from telegram import Bot
 import logging
@@ -42,43 +46,56 @@ def save_state(last_date, last_check_date):
     with open(STATE_FILE, 'w', encoding='utf-8') as f:
         json.dump({'last_date': last_date, 'last_check_date': last_check_date}, f)
 
-async def get_basis_date():
-    """Playwright를 사용해 KOFIA 페이지에서 기준일자 추출"""
+def get_basis_date():
+    """Selenium을 사용해 KOFIA 페이지에서 기준일자 추출"""
     try:
-        logger.info("Playwright로 KOFIA 페이지 로딩 중...")
+        logger.info("Selenium으로 KOFIA 페이지 로딩 중...")
         
-        async with async_playwright() as p:
-            browser = await p.chromium.launch()
-            page = await browser.new_page()
+        # Chrome 옵션 설정
+        options = webdriver.ChromeOptions()
+        options.add_argument('--start-maximized')
+        options.add_argument('--disable-blink-features=AutomationControlled')
+        
+        # GitHub Actions 환경 감지
+        if os.environ.get('GITHUB_ACTIONS'):
+            options.add_argument('--headless=new')
+            options.add_argument('--no-sandbox')
+            options.add_argument('--disable-dev-shm-usage')
+            logger.info("GitHub Actions 환경 감지됨 - headless 모드 실행")
+        
+        # Chrome 드라이버 설정
+        driver = webdriver.Chrome(
+            service=Service(ChromeDriverManager().install()),
+            options=options
+        )
+        
+        logger.info(f"페이지 이동: {KOFIA_URL}")
+        driver.get(KOFIA_URL)
+        
+        # 페이지 로드 대기 (최대 30초)
+        wait = WebDriverWait(driver, 30)
+        date_input = wait.until(
+            EC.presence_of_element_located((By.ID, 'nextDate_input'))
+        )
+        
+        # 기준일자 추출
+        basis_date = date_input.get_attribute('value')
+        
+        driver.quit()
+        
+        if basis_date:
+            logger.info(f"기준일자 추출 성공: {basis_date}")
+            return basis_date
+        else:
+            logger.warning("기준일자 값이 비어있습니다")
+            return None
             
-            logger.info(f"페이지 이동: {KOFIA_URL}")
-            await page.goto(KOFIA_URL, wait_until='networkidle', timeout=30000)
-            
-            # 페이지가 로드될 때까지 대기
-            await page.wait_for_load_state('networkidle')
-            
-            # JavaScript 실행으로 기준일자 추출
-            basis_date = await page.evaluate("""
-                () => {
-                    const dateInput = document.getElementById('nextDate_input');
-                    if (dateInput && dateInput.value) {
-                        return dateInput.value;
-                    }
-                    return null;
-                }
-            """)
-            
-            await browser.close()
-            
-            if basis_date:
-                logger.info(f"기준일자 추출 성공: {basis_date}")
-                return basis_date
-            else:
-                logger.warning("기준일자를 찾을 수 없습니다")
-                return None
-                
     except Exception as e:
         logger.error(f"기준일자 추출 실패: {str(e)}")
+        try:
+            driver.quit()
+        except:
+            pass
         return None
 
 def send_telegram_message(message):
@@ -103,8 +120,7 @@ def check_fund_basis_date():
     current_state = get_last_state()
     current_date = datetime.now(TZ)
     
-    # 비동기 함수를 동기적으로 실행
-    basis_date = asyncio.run(get_basis_date())
+    basis_date = get_basis_date()
     
     if not basis_date:
         logger.error("기준일자를 가져올 수 없습니다")
@@ -130,13 +146,11 @@ def check_fund_basis_date():
         
         send_telegram_message(message)
         
-        # 상태 저장 - 기준일자가 변경되었으므로 다음 영업일 체크 스킵
         save_state(basis_date, current_date.strftime('%Y-%m-%d'))
-        logger.info("상태 저장: 기준일자 변경됨 (다음 영업일 스킵)")
+        logger.info("상태 저장: 기준일자 변경됨")
         return True
     else:
         logger.info("기준일자 변경 없음")
-        # 상태만 업데이트
         save_state(basis_date, current_date.strftime('%Y-%m-%d'))
         return False
     
